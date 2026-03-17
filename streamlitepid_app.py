@@ -7,6 +7,34 @@ import os
 # --- Configuración de Página ---
 st.set_page_config(page_title="Eco-Fármaco Dashboard", layout="wide", page_icon="🧪")
 
+# --- Estilos CSS Personalizados para Tarjetas ---
+st.markdown("""
+    <style>
+    .card {
+        background-color: #f9f9f9;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-left: 5px solid #4CAF50;
+        margin-bottom: 20px;
+    }
+    .card-title {
+        font-size: 1.1em;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 10px;
+    }
+    .card-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    .alert-high { border-left-color: #e74c3c; }
+    .alert-med { border-left-color: #f39c12; }
+    .alert-low { border-left-color: #27ae60; }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- Funciones de Base de Datos ---
 
 @st.cache_resource
@@ -24,7 +52,6 @@ def init_db(conn):
     """Crea las tablas y datos de ejemplo si no existen."""
     cursor = conn.cursor()
     
-    # Crear tablas (IF NOT EXISTS asegura que no falla si ya existen)
     cursor.execute('''CREATE TABLE IF NOT EXISTS Medicamentos (
                         id_med INTEGER PRIMARY KEY, 
                         nombre_comun TEXT, 
@@ -42,10 +69,8 @@ def init_db(conn):
                         id_med INTEGER, 
                         concentracion_hallada REAL)''')
     
-    # Verificar si ya hay datos
     cursor.execute("SELECT COUNT(*) FROM Medicamentos")
     if cursor.fetchone()[0] == 0:
-        # Insertar datos de ejemplo solo si está vacío
         meds = [(1, 'Diclofenaco', 50.0), (2, 'Carbamazepina', 200.0), (3, 'Ibuprofeno', 300.0)]
         rios = [(1, 'Río Bogotá'), (2, 'Río Magdalena'), (3, 'Río Cauca')]
         
@@ -61,12 +86,10 @@ def init_db(conn):
             (7, 3, 1, 80.0),  (8, 3, 2, 15.0),  (9, 3, 3, 100.0)
         ]
         cursor.executemany("INSERT INTO Resultados_Laboratorio VALUES (?,?,?,?)", resultados)
-        
         conn.commit()
-        st.success("✅ Base de datos inicializada correctamente.")
 
 @st.cache_data(ttl=600)
-def load_data(_conn):  # ✅ El guion bajo evita el error de hashing
+def load_data(_conn):
     """Carga los datos desde SQL a Pandas."""
     query = """
     SELECT 
@@ -84,9 +107,86 @@ def load_data(_conn):  # ✅ El guion bajo evita el error de hashing
     return df
 
 def reset_database():
-    """Elimina la base de datos para reiniciar desde cero."""
-    os.remove('epidemiologia.db')
+    if os.path.exists('epidemiologia.db'):
+        os.remove('epidemiologia.db')
     st.rerun()
+
+# --- Componentes de Tarjetas Interactivas ---
+
+def render_interactive_cards(df_filtrado, filtro_rio):
+    """
+    Renderiza 3 tarjetas interactivas:
+    1. Estado de Alerta (Semáforo)
+    2. Filtro Rápido por Fármaco
+    3. Estadística del Río Seleccionado
+    """
+    col_card1, col_card2, col_card3 = st.columns(3)
+    
+    # --- TARJETA 1: Estado de Alerta (Descriptiva) ---
+    with col_card1:
+        max_riesgo_global = df_filtrado['riesgo'].max() if not df_filtrado.empty else 0
+        
+        if max_riesgo_global > 1.0:
+            estado = "⚠️ CRÍTICO"
+            clase = "alert-high"
+            desc = "Se superó el umbral de riesgo (RQ > 1)"
+        elif max_riesgo_global > 0.5:
+            estado = "⚡ PRECAUCIÓN"
+            clase = "alert-med"
+            desc = "Niveles moderados detectados"
+        else:
+            estado = "✅ NORMAL"
+            clase = "alert-low"
+            desc = "Niveles dentro de lo esperado"
+            
+        st.markdown(f"""
+            <div class="card {clase}">
+                <div class="card-title">Estado de Alerta Ambiental</div>
+                <div class="card-value">{estado}</div>
+                <div style="font-size: 0.9em; color: #666;">{desc}</div>
+                <div style="font-size: 0.8em; margin-top:5px;">Riesgo Máx: {max_riesgo_global:.2f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # --- TARJETA 2: Filtro Rápido (Interactiva) ---
+    with col_card2:
+        st.markdown("""
+            <div class="card">
+                <div class="card-title">🔍 Filtro Rápido por Fármaco</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Usamos un contenedor dentro de la columna para el widget
+        farmaco_seleccionado = st.selectbox(
+            "Aislar medicamento:",
+            options=["Todos"] + list(df_filtrado['nombre_comun'].unique()),
+            key="card_filtro_farmaco",
+            label_visibility="collapsed"
+        )
+        # Nota: Este filtro se aplicará más abajo en la lógica principal
+
+    # --- TARJETA 3: Estadística Dinámica (Descriptiva) ---
+    with col_card3:
+        # Calculamos stats solo para los ríos seleccionados en la sidebar
+        if filtro_rio:
+            rio_stats = df_filtrado[df_filtrado['nombre_rio'].isin(filtro_rio)]
+            avg_conc = rio_stats['concentracion_hallada'].mean()
+            total_muestras = len(rio_stats)
+            
+            st.markdown(f"""
+                <div class="card">
+                    <div class="card-title">📊 Estadísticas de Ríos Seleccionados</div>
+                    <div class="card-value">{avg_conc:.1f} ng/L</div>
+                    <div style="font-size: 0.9em; color: #666;">Concentración Promedio</div>
+                    <div style="font-size: 0.8em; margin-top:5px; border-top:1px solid #ddd; padding-top:5px;">
+                        Muestras analizadas: <b>{total_muestras}</b>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='card'><div class='card-title'>Sin datos seleccionados</div></div>", unsafe_allow_html=True)
+            
+    return farmaco_seleccionado
 
 # --- Ejecución Principal ---
 
@@ -97,11 +197,8 @@ def main():
 
     # Conectar
     conn = init_connection()
-    
-    # Inicializar DB (Verifica tablas, no solo el archivo)
     init_db(conn)
     
-    # Verificación final antes de cargar
     if not check_tables_exist(conn):
         st.error("❌ Error crítico: Las tablas no se pudieron crear.")
         st.stop()
@@ -111,23 +208,22 @@ def main():
         df = load_data(conn)
     except Exception as e:
         st.error(f"Error al cargar datos: {e}")
-        # Botón de emergencia para reiniciar
         if st.button("🔄 Reiniciar Base de Datos"):
             reset_database()
         return
 
-    # --- Barra Lateral (Filtros) ---
-    st.sidebar.header("🔍 Filtros")
+    # --- Barra Lateral (Filtros Globales) ---
+    st.sidebar.header("🔍 Filtros Globales")
     filtro_rio = st.sidebar.multiselect(
         "Seleccionar Río", 
         options=df['nombre_rio'].unique(), 
         default=df['nombre_rio'].unique()
     )
 
-    # Aplicar Filtros
+    # Aplicar Filtros de Sidebar
     df_filtrado = df[df['nombre_rio'].isin(filtro_rio)]
 
-    # --- KPIs (Métricas) ---
+    # --- KPIs Principales ---
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Fármacos Monitoreados", df_filtrado['nombre_comun'].nunique())
@@ -139,26 +235,41 @@ def main():
 
     st.markdown("---")
 
+    # --- SECCIÓN DE TARJETAS INTERACTIVAS (NUEVO) ---
+    st.subheader("Panel de Control Inteligente")
+    farmaco_card_filter = render_interactive_cards(df_filtrado, filtro_rio)
+    
+    # Aplicar el filtro de la tarjeta al dataframe para los gráficos
+    if farmaco_card_filter != "Todos":
+        df_final = df_filtrado[df_filtrado['nombre_comun'] == farmaco_card_filter]
+        st.info(f"🔎 Mostrando datos filtrados para: **{farmaco_card_filter}**")
+    else:
+        df_final = df_filtrado
+
     # --- Gráficos ---
     st.subheader("Niveles de Riesgo por Medicamento y Río")
     
-    fig = px.bar(
-        df_filtrado, 
-        x='nombre_rio', 
-        y='concentracion_hallada', 
-        color='nombre_comun', 
-        barmode='group', 
-        labels={'concentracion_hallada': 'Concentración (ng/L)'},
-        log_y=True
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    if df_final.empty:
+        st.warning("No hay datos para mostrar con los filtros actuales.")
+    else:
+        fig = px.bar(
+            df_final, 
+            x='nombre_rio', 
+            y='concentracion_hallada', 
+            color='nombre_comun', 
+            barmode='group', 
+            labels={'concentracion_hallada': 'Concentración (ng/L)'},
+            log_y=True,
+            title=f"Distribución de Concentraciones {'(' + farmaco_card_filter + ')' if farmaco_card_filter != 'Todos' else ''}"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
     # --- Tabla Interactiva ---
     st.subheader("Datos Detallados de Laboratorio")
-    st.dataframe(df_filtrado, use_container_width=True)
+    st.dataframe(df_final, use_container_width=True)
     
     # Botón de descarga
-    csv = df_filtrado.to_csv(index=False).encode('utf-8')
+    csv = df_final.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Descargar Datos Filtrados (CSV)",
         data=csv,
