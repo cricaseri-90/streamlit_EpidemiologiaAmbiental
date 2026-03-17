@@ -44,7 +44,7 @@ Asegúrate de tener instaladas las siguientes librerías:
 - `sqlite3`
 
 ## 👤 Autoría
-Realizado por **Cristian C. Serna-Rivera** **Wilson Castañeda** - *Talento TECH 2024*
+Realizado por **Cristian C. Serna-Rivera** **Wilson Castañeda** - *Talento TECH 2026*
 
 ---
 *Datos obtenidos de prueba generados con base en la noticia https://periodico.unal.edu.co/articulos/los-medicamentos-como-contaminantes-el-peligro-oculto-en-nuestros-rios*
