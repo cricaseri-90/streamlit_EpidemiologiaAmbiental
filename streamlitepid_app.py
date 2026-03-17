@@ -7,45 +7,51 @@ import os
 # --- Configuración de Página ---
 st.set_page_config(page_title="Eco-Fármaco Dashboard", layout="wide", page_icon="🧪")
 
-# --- Funciones de Utilidad y Caché ---
+# --- Funciones de Base de Datos ---
 
 @st.cache_resource
 def init_connection():
     """Inicializa la conexión a la base de datos."""
     return sqlite3.connect('epidemiologia.db', check_same_thread=False)
 
-def init_db():
-    """Crea la base de datos y tablas con datos dummy si no existen."""
-    if not os.path.exists('epidemiologia.db'):
-        conn = sqlite3.connect('epidemiologia.db')
-        cursor = conn.cursor()
-        
-        # Crear tablas
-        cursor.execute('''CREATE TABLE IF NOT EXISTS Medicamentos (
-                            id_med INTEGER PRIMARY KEY, 
-                            nombre_comun TEXT, 
-                            pnec_ngl REAL)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS Puntos_Monitoreo (
-                            id_punto INTEGER PRIMARY KEY, 
-                            nombre_rio TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS Muestras (
-                            id_muestra INTEGER PRIMARY KEY, 
-                            id_punto INTEGER, 
-                            fecha_muestreo DATE)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS Resultados_Laboratorio (
-                            id_res INTEGER PRIMARY KEY, 
-                            id_muestra INTEGER, 
-                            id_med INTEGER, 
-                            concentracion_hallada REAL)''')
-        
-        # Insertar datos de ejemplo
+def check_tables_exist(conn):
+    """Verifica si las tablas necesarias existen."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Resultados_Laboratorio'")
+    return cursor.fetchone() is not None
+
+def init_db(conn):
+    """Crea las tablas y datos de ejemplo si no existen."""
+    cursor = conn.cursor()
+    
+    # Crear tablas (IF NOT EXISTS asegura que no falla si ya existen)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS Medicamentos (
+                        id_med INTEGER PRIMARY KEY, 
+                        nombre_comun TEXT, 
+                        pnec_ngl REAL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS Puntos_Monitoreo (
+                        id_punto INTEGER PRIMARY KEY, 
+                        nombre_rio TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS Muestras (
+                        id_muestra INTEGER PRIMARY KEY, 
+                        id_punto INTEGER, 
+                        fecha_muestreo DATE)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS Resultados_Laboratorio (
+                        id_res INTEGER PRIMARY KEY, 
+                        id_muestra INTEGER, 
+                        id_med INTEGER, 
+                        concentracion_hallada REAL)''')
+    
+    # Verificar si ya hay datos
+    cursor.execute("SELECT COUNT(*) FROM Medicamentos")
+    if cursor.fetchone()[0] == 0:
+        # Insertar datos de ejemplo solo si está vacío
         meds = [(1, 'Diclofenaco', 50.0), (2, 'Carbamazepina', 200.0), (3, 'Ibuprofeno', 300.0)]
         rios = [(1, 'Río Bogotá'), (2, 'Río Magdalena'), (3, 'Río Cauca')]
         
         cursor.executemany("INSERT INTO Medicamentos VALUES (?,?,?)", meds)
         cursor.executemany("INSERT INTO Puntos_Monitoreo VALUES (?,?)", rios)
         
-        # Muestras y resultados dummy
         muestras = [(1, 1, '2023-01-01'), (2, 2, '2023-01-02'), (3, 3, '2023-01-03')]
         cursor.executemany("INSERT INTO Muestras VALUES (?,?,?)", muestras)
         
@@ -57,10 +63,10 @@ def init_db():
         cursor.executemany("INSERT INTO Resultados_Laboratorio VALUES (?,?,?,?)", resultados)
         
         conn.commit()
-        conn.close()
+        st.success("✅ Base de datos inicializada correctamente.")
 
 @st.cache_data(ttl=600)
-def load_data(_conn):  # ✅ El guion bajo indica a Streamlit que no hashee este argumento
+def load_data(_conn):  # ✅ El guion bajo evita el error de hashing
     """Carga los datos desde SQL a Pandas."""
     query = """
     SELECT 
@@ -77,25 +83,37 @@ def load_data(_conn):  # ✅ El guion bajo indica a Streamlit que no hashee este
     df = pd.read_sql(query, _conn)
     return df
 
+def reset_database():
+    """Elimina la base de datos para reiniciar desde cero."""
+    os.remove('epidemiologia.db')
+    st.rerun()
+
 # --- Ejecución Principal ---
 
 def main():
-    # Inicializar DB si es necesario
-    init_db()
-    
-    # Conectar
-    conn = init_connection()
-    
-    # Título y Header
     st.title("🧪 Vigilancia Epidemiológica Ambiental")
     st.markdown("Análisis de medicamentos como contaminantes hídricos (Ref: UNAL)")
     st.markdown("---")
+
+    # Conectar
+    conn = init_connection()
+    
+    # Inicializar DB (Verifica tablas, no solo el archivo)
+    init_db(conn)
+    
+    # Verificación final antes de cargar
+    if not check_tables_exist(conn):
+        st.error("❌ Error crítico: Las tablas no se pudieron crear.")
+        st.stop()
 
     # Cargar Datos
     try:
         df = load_data(conn)
     except Exception as e:
         st.error(f"Error al cargar datos: {e}")
+        # Botón de emergencia para reiniciar
+        if st.button("🔄 Reiniciar Base de Datos"):
+            reset_database()
         return
 
     # --- Barra Lateral (Filtros) ---
