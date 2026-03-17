@@ -37,14 +37,13 @@ A partir de esta estructura se generan **datos sintéticos y consultas SQL** que
 Asegúrate de tener instaladas las siguientes librerías:
 - `streamlit`
 - `pandas`
-- `numpy`
 - `seaborn`
 - `matplotlib`
 - `plotly`
-- `sqlite3`
+
 
 ## 👤 Autoría
-Realizado por **Cristian C. Serna-Rivera** **Wilson Castañeda** - *Talento TECH 2026*
+Realizado por **Cristian C. Serna-Rivera** y **Wilson Castañeda** - *Talento TECH 2026*
 
 ---
 *Datos obtenidos de prueba generados con base en la noticia https://periodico.unal.edu.co/articulos/los-medicamentos-como-contaminantes-el-peligro-oculto-en-nuestros-rios*
