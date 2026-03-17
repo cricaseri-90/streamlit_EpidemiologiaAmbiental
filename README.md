@@ -1,2 +1,2 @@
 # streamlit_EpidemiologiaAmbiental
-Es el repo del entregable. Sistema de análisis de contaminantes emergentes (medicamentos) en fuentes hídricas. Integra una base de datos en MySQL con datos de monitoreo, concentraciones y umbrales de seguridad, visualizados en un dashboard interactivo en Streamlit para evaluar riesgos ambientales y de salud pública.
+streamlit_EpidemiologiaAmbiental es el repo  para desplegar el análisis de datos del entregable de la misión 2 con tema Sistema de análisis de contaminantes emergentes (medicamentos) en fuentes hídricas. Integra una base de datos en MySQL con datos de monitoreo, concentraciones y umbrales de seguridad, visualizados en un dashboard interactivo en Streamlit para evaluar riesgos ambientales y de salud pública.
