@@ -60,7 +60,7 @@ def init_db():
         conn.close()
 
 @st.cache_data(ttl=600)
-def load_data(conn):
+def load_data(_conn):  # ✅ El guion bajo indica a Streamlit que no hashee este argumento
     """Carga los datos desde SQL a Pandas."""
     query = """
     SELECT 
@@ -74,7 +74,7 @@ def load_data(conn):
     JOIN Muestras mu ON r.id_muestra = mu.id_muestra
     JOIN Puntos_Monitoreo p ON mu.id_punto = p.id_punto
     """
-    df = pd.read_sql(query, conn)
+    df = pd.read_sql(query, _conn)
     return df
 
 # --- Ejecución Principal ---
@@ -124,7 +124,6 @@ def main():
     # --- Gráficos ---
     st.subheader("Niveles de Riesgo por Medicamento y Río")
     
-    # Gráfico de barras con línea de umbral
     fig = px.bar(
         df_filtrado, 
         x='nombre_rio', 
@@ -132,7 +131,7 @@ def main():
         color='nombre_comun', 
         barmode='group', 
         labels={'concentracion_hallada': 'Concentración (ng/L)'},
-        log_y=True # Escala logarítmica para mejor visualización de rangos amplios
+        log_y=True
     )
     st.plotly_chart(fig, use_container_width=True)
 
